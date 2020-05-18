@@ -1,0 +1,128 @@
+---
+title: "Preprocessing"
+author: "Anna Stuckert and Sofie Rødkjær"
+date: "17/5/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Load packages
+```{r cars}
+pacman::p_load(
+  rethinking,
+  brms,
+  tidyverse,
+  bayesplot,
+  viridis,
+  dplyr, 
+  ggplot2,
+  tibble, 
+  boot,
+  cowplot,
+  caret,
+  e1071
+)
+
+```
+
+## Load data
+
+```{r pressure, echo=FALSE}
+#load data
+
+#AVS file path
+# fileList <- list.files(path="~/Desktop/Exam experiment SocCult Anna og Sofie/Data_Virksomhedsprojekt2/",pattern='*.csv',full.names = TRUE)
+
+#SRB file path
+fileList <- list.files(path="~/Exam experiment SocCult Anna og Sofie DONE/Data_Virksomhedsprojekt/",pattern='*.csv',full.names = TRUE)
+
+dr=NULL
+
+for (f in fileList){
+  t <- read_csv(f)
+  if (exists("dr")){ dr = rbind(dr,t) } else { dr = t }
+}
+
+#renaming df
+d <- dr
+
+# Rename column
+colnames(d)[colnames(d) == "X1"] <- "Trial"
+
+# Recode PR (Participant Response)
+d$PR = as.character(d$PR)
+d$PR[d$PR=="no"] = "0"
+d$PR[d$PR=="yes"] = "1"
+d$PR = as.numeric(d$PR)
+
+##subset for each bot
+dA <- d %>% subset(BOT == "A") %>% group_by(ID)
+dB <- d %>% subset(BOT == "B") %>% group_by(ID)
+dC <- d %>% subset(BOT == "C") %>% group_by(ID)
+dD <- d %>% subset(BOT == "D") %>% group_by(ID)
+dE <- d %>% subset(BOT == "E") %>% group_by(ID)
+dF <- d %>% subset(BOT == "F") %>% group_by(ID)
+dG <- d %>% subset(BOT == "G") %>% group_by(ID)
+dH <- d %>% subset(BOT == "H") %>% group_by(ID)
+
+#Add column with the bot's last answer
+# data frame for bot A
+dA <- mutate(dA, BRprevious = lag(BR))
+dB <- mutate(dB, BRprevious = lag(BR))
+dC <- mutate(dC, BRprevious = lag(BR))
+dD <- mutate(dD, BRprevious = lag(BR))
+dE <- mutate(dE, BRprevious = lag(BR))
+dF <- mutate(dF, BRprevious = lag(BR))
+dG <- mutate(dG, BRprevious = lag(BR))
+dH <- mutate(dH, BRprevious = lag(BR))
+
+#merge back together
+d <- rbind(dA, dB, dC, dD, dE, dF, dG, dH)
+
+#remove NAs
+d <- na.omit(d) 
+
+#Check variable classes
+str(d)
+d$Gender <- as.factor(d$Gender)
+d$Social_Rep <- as.factor(d$Social_Rep)
+d$Prog_Beh <- as.factor(d$Prog_Beh)
+d$BotGender <- as.factor(d$BotGender)
+```
+
+##### Information about participants
+
+```{r}
+#fix one participant who did not use an ID-number
+d$ID <- ifelse(d$ID =="iben", 70, d$ID)
+
+# How many participants?
+unique(d$ID)
+length(unique(d$ID))
+
+#mean age og sd
+mean(d$Age)
+sd(d$Age)
+
+#number of women
+women <- d %>% subset(Gender == "Kvinde") %>% group_by(ID)
+unique(women$ID)
+length(unique(women$ID))
+
+#number of men
+men <- d %>% subset(Gender == "Mand") %>% group_by(ID)
+unique(men$ID)
+length(unique(men$ID))
+
+#number of others
+other <- d %>% subset(Gender == "Andet") %>% group_by(ID)
+unique(other$ID)
+length(unique(other$ID))
+
+#Write csv file with cleaned data
+write.csv(d, "Data_cleaned.csv")
+```
+
+For analysis, see Main analysis script
