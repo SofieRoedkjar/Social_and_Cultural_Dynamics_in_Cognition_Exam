@@ -1,0 +1,330 @@
+---
+title: "Plot code"
+author: "Anna Stuckert"
+date: "5/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Load packages
+```{r cars}
+pacman::p_load(
+  rethinking,
+  brms,
+  tidyverse,
+  bayesplot,
+  viridis,
+  dplyr, 
+  ggplot2,
+  tibble, 
+  boot,
+  cowplot,
+  ggsci 
+)
+```
+
+## Load data
+
+```{r pressure, echo=FALSE}
+#load data
+#AVS file path
+# fileList <- list.files(path="~/Desktop/Exam experiment SocCult Anna og Sofie/Data_Virksomhedsprojekt2/",pattern='*.csv',full.names = TRUE)
+#SRB file path
+fileList <- list.files(path="~/Exam experiment SocCult Anna og Sofie DONE/Data_Virksomhedsprojekt/",pattern='*.csv',full.names = TRUE)
+dr=NULL
+for (f in fileList){
+  t <- read_csv(f)
+  if (exists("dr")){ dr = rbind(dr,t) } else { dr = t }
+}
+#renaming df
+d <- dr
+# Rename column
+colnames(d)[colnames(d) == "X1"] <- "Trial"
+# Recode PR (Participant Response)
+d$PR = as.character(d$PR)
+d$PR[d$PR=="no"] = "0"
+d$PR[d$PR=="yes"] = "1"
+d$PR = as.numeric(d$PR)
+# Recode BR (BOT Response)
+#d$BR = as.character(d$BR)
+#d$BR[d$BR=="Defect"] = "0"
+#d$BR[d$BR=="Cooperate"] = "1"
+#d$BR = as.factor(d$BR)
+#subset for each bot
+dA <- d %>% subset(BOT == "A") %>% group_by(ID)
+dB <- d %>% subset(BOT == "B") %>% group_by(ID)
+dC <- d %>% subset(BOT == "C") %>% group_by(ID)
+dD <- d %>% subset(BOT == "D") %>% group_by(ID)
+dE <- d %>% subset(BOT == "E") %>% group_by(ID)
+dF <- d %>% subset(BOT == "F") %>% group_by(ID)
+dG <- d %>% subset(BOT == "G") %>% group_by(ID)
+dH <- d %>% subset(BOT == "H") %>% group_by(ID)
+#Add column with the bot's last answer
+# data frame for bot A
+dA <- mutate(dA, BRprevious = lag(BR))
+dB <- mutate(dB, BRprevious = lag(BR))
+dC <- mutate(dC, BRprevious = lag(BR))
+dD <- mutate(dD, BRprevious = lag(BR))
+dE <- mutate(dE, BRprevious = lag(BR))
+dF <- mutate(dF, BRprevious = lag(BR))
+dG <- mutate(dG, BRprevious = lag(BR))
+dH <- mutate(dH, BRprevious = lag(BR))
+#merge back together
+d <- rbind(dA, dB, dC, dD, dE, dF, dG, dH)
+#remove NAs
+d <- na.omit(d) 
+#Rewrite Participant gender into english
+d$Gender <- ifelse(d$Gender == "Kvinde", "Female", "Male")
+```
+
+MODEL PREDICTIONS  - REAL VS MODEL PREDICTED DATA
+
+M3
+
+```{r}
+# To get model predictions (in probabilities)
+predictions=predict(m3, type = "response")
+d$predictionm3 = predictions[,1]
+class(d$predictionm3)
+class(d$PR)
+# To make a plot comparing model predictions with actual data. Actual data = red, predictions = blue
+dens(d$PR, col = "red") 
+dens(d$predictionm3, col = "blue")
+# Create column with model predictions of PR (1s and 0s)
+d$Predictionsm3[d$predictionm3>0.5]=1 
+d$Predictionsm3[d$predictionm3<=0.5]=0
+```
+
+M6
+```{r}
+# To get model predictions (in probabilities)
+predictions=predict(m6, type = "response")
+d$predictionm6 = predictions[,1]
+class(d$prediction6)
+class(d$PR)
+# To make a plot comparing model predictions with actual data. Actual data = red, predictions = blue
+dens(d$PR, col = "red") 
+dens(d$predictionm6, col = "blue")
+# Create column with model predictions of PR (1s and 0s)
+d$Predictionsm6[d$predictionm6>0.5]=1 
+d$Predictionsm6[d$predictionm6<=0.5]=0
+```
+
+Plots
+```{r}
+#H1: Agents with high reputation will be cooperated with more than agents with low reputation
+#Raw data
+p1.1 <- ggplot(d, aes(Social_Rep, PR, fill=Social_Rep)) + 
+  geom_bar(stat= "summary") + 
+  geom_errorbar(stat="summary", fun.data=mean_se, width=0.3)+
+  ggtitle("Raw data") +
+  ylab("Probability of participant cooperation")+ 
+  xlab("Social reputation") + 
+  scale_fill_brewer(palette = "Paired", name = "Social reputation", labels = c("High", "Low")) + 
+  ylim(0,1)
+#Model predictions
+p1.2 <- ggplot(d, aes(Social_Rep, predictionm3, fill=Social_Rep)) + 
+  geom_bar(stat= "summary") + 
+  geom_errorbar(stat="summary", fun.data=mean_se, width=0.3)+
+  ggtitle("Model predictions") +
+  ylab("Probability of participant cooperation")+ 
+  xlab("Social reputation") + 
+  scale_fill_brewer(palette = "Paired", name = "Social reputation", labels = c("High", "Low")) + 
+  ylim(0,1)
+plot_row<- plot_grid(p1.1, p1.2)
+# now add the title
+title <- ggdraw() + 
+  draw_label(
+    "Probability of participant cooperation for high and low social reputation",
+    x = 0,
+    hjust = 0
+  ) +
+  theme(
+    plot.margin = margin(0, 0, 0, 7)
+  )
+plot_grid(
+  title, plot_row,
+  ncol = 1,
+  rel_heights = c(0.1, 1)
+)
+```
+
+```{r}
+#H2: There will be a general preference to cooperate with one gender above the other.
+#Raw data
+p2.1<- ggplot(d, aes(BotGender, PR, fill=BotGender)) + 
+  geom_bar(stat= "summary") + 
+  geom_errorbar(stat="summary", fun.data=mean_se, width=0.3) + 
+  ggtitle("Raw data") + 
+  ylab("Probability of participant cooperation") + 
+  xlab("Partner gender") + 
+  scale_fill_brewer(palette="Set1", name = "Partner gender", labels = c("F", "M"))
+#Model predictions
+p2.2 <- ggplot(d, aes(BotGender, predictionm3, fill=BotGender)) + 
+  geom_bar(stat= "summary") + 
+  geom_errorbar(stat="summary", fun.data=mean_se, width=0.3) + 
+  ggtitle("Model predictions") + 
+  ylab("Probability of participant cooperation") + 
+  xlab("Partner gender") + 
+  scale_fill_brewer(palette="Set1", name = "Partner gender", labels = c("F", "M"))
+plot_row2<- plot_grid(p2.1, p2.2)
+# now add the title
+title <- ggdraw() + 
+  draw_label(
+    "Probability of participant cooperation for partner gender",
+    x = 0,
+    hjust = 0
+  ) +
+  theme(
+    plot.margin = margin(0, 0, 0, 7)
+  )
+plot_grid(
+  title, plot_row2,
+  ncol = 1,
+  rel_heights = c(0.1, 1)
+)
+```
+
+```{r}
+#H3:The preference for partner gender, reflected in cooperation, will depend on the partner’s reputation
+#Raw data
+p3.1 <- ggplot(d, aes(Social_Rep, PR, color = BotGender, group = BotGender)) +
+  geom_point(stat = "summary", fun.y = mean) +
+  geom_errorbar(stat = "summary", fun.data = mean_se, width = 0.2, alpha = 0.4) +             
+  geom_line(stat = "summary")+ 
+  ggtitle("Raw data") + 
+  ylab("Probability of participant cooperation") + 
+  xlab("Social reputation") + 
+  scale_color_brewer(palette="Set1", name = "Partner gender", labels = c("F", "M"))
+#Model predictions
+p3.2 <- ggplot(d, aes(Social_Rep, predictionm3, color = BotGender, group = BotGender)) +
+  geom_point(stat = "summary", fun.y = mean) +
+  geom_errorbar(stat = "summary", fun.data = mean_se, width = 0.2, alpha = 0.4) +             
+  geom_line(stat = "summary")+ 
+  ggtitle("Model predictions") + 
+  ylab("Probability of participant cooperation") + 
+  xlab("Social reputation") + 
+  scale_color_brewer(palette="Set1", name = "Partner gender", labels = c("F", "M"))
+plot_row3<- plot_grid(p3.1, p3.2)
+# now add the title
+title <- ggdraw() + 
+  draw_label(
+    "Probability of participant cooperation for partner gender and social reputation",
+    x = 0,
+    hjust = 0
+  ) +
+  theme(
+    plot.margin = margin(0, 0, 0, 7)
+  )
+plot_grid(
+  title, plot_row3,
+  ncol = 1,
+  rel_heights = c(0.1, 1)
+)
+```
+
+```{r}
+#H4
+# Main effect of programmed behavior
+#Raw data
+p4.1 <- ggplot(d, aes(Prog_Beh, PR, fill=Prog_Beh)) + 
+  geom_bar(stat= "summary", position = position_dodge()) + 
+  geom_errorbar(stat="summary", fun.data=mean_se, width=0.3, position = position_dodge2()) + 
+  theme(legend.position= "right") + 
+  ggtitle("Raw data") + 
+  ylab("Probability of participant cooperation")+
+  xlab("Programmed behavior") +
+  scale_fill_brewer(palette="Paired", name = "Programmed behavior") + 
+  ylim(0,1)
+#Model predictions
+p4.2 <- ggplot(d, aes(Prog_Beh, predictionm6, fill=Prog_Beh)) + 
+  geom_bar(stat= "summary", position = position_dodge()) + 
+  geom_errorbar(stat="summary", fun.data=mean_se, width=0.3, position = position_dodge2()) + 
+  theme(legend.position= "right") + 
+  ggtitle("Model predictions") + 
+  ylab("Probability of participant cooperation")+
+  xlab("Programmed behavior") +
+  scale_fill_brewer(palette="Paired", name = "Programmed behavior") + 
+  ylim(0,1)
+plot_row4.1<- plot_grid(p4.1, p4.2)
+# now add the title
+title <- ggdraw() + 
+  draw_label(
+    "Probability of participant cooperation for good and bad behavior",
+    x = 0,
+    hjust = 0
+  ) +
+  theme(
+    plot.margin = margin(0, 0, 0, 7)
+  )
+plot_grid(
+  title, plot_row4.1,
+  ncol = 1,
+  rel_heights = c(0.1, 1)
+)
+# Main effect of programmed behavior by social reputation
+#Raw data
+p4.3 <- ggplot(d, aes(Prog_Beh, PR, fill=Prog_Beh)) + 
+  geom_bar(stat= "summary", position = position_dodge()) + 
+  geom_errorbar(stat="summary", fun.data=mean_se, width=0.3, position = position_dodge2()) + 
+  theme(legend.position= "right") + 
+  ggtitle("Raw data") + 
+  ylab("Probability of participant cooperation")+
+  xlab("Programmed behavior") +
+  scale_fill_brewer(palette="Paired", name = "Programmed behavior") + 
+  ylim(0,1) +
+  facet_wrap(~Social_Rep)
+#model predictions
+p4.4 <- ggplot(d, aes(Prog_Beh, predictionm6, fill=Prog_Beh)) + 
+  geom_bar(stat= "summary", position = position_dodge()) + 
+  geom_errorbar(stat="summary", fun.data=mean_se, width=0.3, position = position_dodge2()) + 
+  theme(legend.position= "right") + 
+  ggtitle("Model predictions") + 
+  ylab("Probability of participant cooperation")+
+  xlab("Programmed behavior") +
+  scale_fill_brewer(palette="Paired", name = "Programmed behavior") + 
+  ylim(0,1) +
+  facet_wrap(~Social_Rep)
+plot_row4.2<- plot_grid(p4.3, p4.4)
+# now add the title
+title <- ggdraw() + 
+  draw_label(
+    "Probability of participant cooperation for good and bad behavior for each social reputation",
+    x = 0,
+    hjust = 0
+  ) +
+  theme(
+    plot.margin = margin(0, 0, 0, 7)
+  )
+plot_grid(
+  title, plot_row4.2,
+  ncol = 1,
+  rel_heights = c(0.1, 1)
+)
+# effect of predictor variables on PR over time
+# Duplicate Bot column 
+d$Partner = d$BOT
+#Participant response as a function of time for each partner
+#Raw data
+p4.5 <- ggplot(d, aes(x = Trial, y= PR, colour = Partner)) + geom_smooth(alpha = 0.2) + ggtitle("Raw data") + xlab("Time aka Trial") + ylab("Probability of participant cooperation")
+#Model predictions
+p4.6 <- ggplot(d, aes(x = Trial, y= predictionm6, colour = Partner)) + geom_smooth(alpha = 0.2) + ggtitle("Model predictions") + xlab("Time aka Trial") + ylab("Probability of participant cooperation")
+plot_row4.3<- plot_grid(p4.5, p4.6)
+# now add the title
+title <- ggdraw() + 
+  draw_label(
+    "Probability of participant cooperation for good and bad behavior for each social reputation",
+    x = 0,
+    hjust = 0
+  ) +
+  theme(
+    plot.margin = margin(0, 0, 0, 7)
+  )
+plot_grid(
+  title, plot_row4.3,
+  ncol = 1,
+  rel_heights = c(0.1, 1)
+)
+```
